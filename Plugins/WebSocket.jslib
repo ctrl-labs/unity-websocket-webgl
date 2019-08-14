@@ -1,4 +1,4 @@
-/*
+﻿/*
  * unity-websocket-webgl
  * 
  * @author Jiri Hybek <jiri@hybek.cz>
@@ -155,21 +155,32 @@ var LibraryWebSocket = {
 			if (webSocketState.onMessage === null)
 				return;
 
-			if (ev.data instanceof ArrayBuffer) {
+            var dataBuffer = null;
 
-				var dataBuffer = new Uint8Array(ev.data);
+			if (ev.data instanceof ArrayBuffer) {
 				
+				dataBuffer = new Uint8Array(ev.data);
+			}
+
+	        else if (typeof ev.data === 'string') {
+	             				
+				var arrayBuffer = new ArrayBuffer(ev.data.length * 1);
+				dataBuffer = new Uint8Array(arrayBuffer);
+				// read string message into data buffer
+				dataBuffer.forEach(function(_, i) {dataBuffer[i] = ev.data.charCodeAt(i);})
+	        }
+
+	        if (dataBuffer != null) {
+
 				var buffer = _malloc(dataBuffer.length);
-				HEAPU8.set(dataBuffer, buffer);
+				HEAPU8.set(dataBuffer, buffer);   
 
 				try {
 					Runtime.dynCall('viii', webSocketState.onMessage, [ instanceId, buffer, dataBuffer.length ]);
 				} finally {
 					_free(buffer);
 				}
-
-			}
-
+	        }
 		};
 
 		instance.ws.onerror = function(ev) {

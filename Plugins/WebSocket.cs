@@ -11,6 +11,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using AOT;
+using System.Text;
+using HybridWebSocket;
 
 namespace HybridWebSocket
 {
@@ -23,7 +25,7 @@ namespace HybridWebSocket
     /// <summary>
     /// Handler for message received from WebSocket.
     /// </summary>
-    public delegate void WebSocketMessageEventHandler(byte[] data);
+    public delegate void WebSocketMessageEventHandler(WSMessageEventArgs e);
 
     /// <summary>
     /// Handler for an error event received from WebSocket.
@@ -34,17 +36,6 @@ namespace HybridWebSocket
     /// Handler for WebSocket Close event.
     /// </summary>
     public delegate void WebSocketCloseEventHandler(WebSocketCloseCode closeCode);
-
-    /// <summary>
-    /// Enum representing WebSocket connection state
-    /// </summary>
-    public enum WebSocketState
-    {
-        Connecting,
-        Open,
-        Closing,
-        Closed
-    }
 
     /// <summary>
     /// Web socket close codes.
@@ -86,16 +77,16 @@ namespace HybridWebSocket
         void Close(WebSocketCloseCode code = WebSocketCloseCode.Normal, string reason = null);
 
         /// <summary>
-        /// Send binary data over the socket.
+        /// Send string data over the socket.
         /// </summary>
         /// <param name="data">Payload data.</param>
-        void Send(byte[] data);
+        void Send(string data);
 
         /// <summary>
         /// Return WebSocket connection state.
         /// </summary>
         /// <returns>The state.</returns>
-        WebSocketState GetState();
+        WebSocketSharp.WebSocketState ReadyState { get; }
 
         /// <summary>
         /// Occurs when the connection is opened.
@@ -105,7 +96,7 @@ namespace HybridWebSocket
         /// <summary>
         /// Occurs when a message is received.
         /// </summary>
-        event WebSocketMessageEventHandler OnMessage;
+        event EventHandler<WSMessageEventArgs> OnMessage;
 
         /// <summary>
         /// Occurs when an error was reported from WebSocket.
@@ -262,7 +253,7 @@ namespace HybridWebSocket
         /// <summary>
         /// Occurs when a message is received.
         /// </summary>
-        public event WebSocketMessageEventHandler OnMessage;
+        public event EventHandler<WSMessageEventArgs> OnMessage;
 
         /// <summary>
         /// Occurs when an error was reported from WebSocket.
@@ -335,13 +326,14 @@ namespace HybridWebSocket
         }
 
         /// <summary>
-        /// Send binary data over the socket.
+        /// Send string data over the socket.
+		/// (JSLib implementation is converted to binary)
         /// </summary>
         /// <param name="data">Payload data.</param>
-        public void Send(byte[] data)
+        public void Send(string data)
         {
-
-            int ret = WebSocketSend(this.instanceId, data, data.Length);
+            byte[] byteData = Encoding.UTF8.GetBytes(data);
+            int ret = WebSocketSend(this.instanceId, byteData, byteData.Length);
 
             if (ret < 0)
                 throw WebSocketHelpers.GetErrorMessageFromCode(ret, null);
@@ -352,32 +344,32 @@ namespace HybridWebSocket
         /// Return WebSocket connection state.
         /// </summary>
         /// <returns>The state.</returns>
-        public WebSocketState GetState()
+        public WebSocketSharp.WebSocketState ReadyState
         {
+            get {
+                int state = WebSocketGetState(this.instanceId);
 
-            int state = WebSocketGetState(this.instanceId);
+                if (state < 0)
+                    throw WebSocketHelpers.GetErrorMessageFromCode(state, null);
 
-            if (state < 0)
-                throw WebSocketHelpers.GetErrorMessageFromCode(state, null);
+                switch (state)
+                {
+                    case 0:
+                        return WebSocketSharp.WebSocketState.Connecting;
 
-            switch (state)
-            {
-                case 0:
-                    return WebSocketState.Connecting;
+                    case 1:
+                        return WebSocketSharp.WebSocketState.Open;
 
-                case 1:
-                    return WebSocketState.Open;
+                    case 2:
+                        return WebSocketSharp.WebSocketState.Closing;
 
-                case 2:
-                    return WebSocketState.Closing;
+                    case 3:
+                        return WebSocketSharp.WebSocketState.Closed;
 
-                case 3:
-                    return WebSocketState.Closed;
-
-                default:
-                    return WebSocketState.Closed;
+                    default:
+                        return WebSocketSharp.WebSocketState.Closed;
+                }
             }
-
         }
 
         /// <summary>
@@ -398,8 +390,8 @@ namespace HybridWebSocket
         /// <param name="data">Binary data.</param>
         public void DelegateOnMessageEvent(byte[] data)
         {
-
-            this.OnMessage?.Invoke(data);
+            WSMessageEventArgs args = new WSMessageEventArgs (Encoding.UTF8.GetString(data));
+            this.OnMessage?.Invoke(this, args);
 
         }
 
@@ -429,7 +421,7 @@ namespace HybridWebSocket
 
     }
 #else
-    public class WebSocket : IWebSocket
+	public class WebSocket : IWebSocket
     {
 
         /// <summary>
@@ -440,7 +432,7 @@ namespace HybridWebSocket
         /// <summary>
         /// Occurs when a message is received.
         /// </summary>
-        public event WebSocketMessageEventHandler OnMessage;
+        public event EventHandler<WSMessageEventArgs> OnMessage;
 
         /// <summary>
         /// Occurs when an error was reported from WebSocket.
@@ -479,8 +471,9 @@ namespace HybridWebSocket
                 // Bind OnMessage event
                 this.ws.OnMessage += (sender, ev) =>
                 {
-                    if (ev.RawData != null)
-                        this.OnMessage?.Invoke(ev.RawData);
+                    WSMessageEventArgs args = new WSMessageEventArgs(ev);
+                    if (ev != null)
+                        this.OnMessage?.Invoke(this, args);
                 };
 
                 // Bind OnError event
@@ -555,15 +548,17 @@ namespace HybridWebSocket
         }
 
         /// <summary>
-        /// Send binary data over the socket.
+        /// Send string data over the socket.
         /// </summary>
         /// <param name="data">Payload data.</param>
-        public void Send(byte[] data)
+        public void Send(string data)
         {
-
             // Check state
             if (this.ws.ReadyState != WebSocketSharp.WebSocketState.Open)
                 throw new WebSocketInvalidStateException("WebSocket is not in open state.");
+
+            if (data == null)
+                throw new ArgumentNullException(nameof(data));
 
             try
             {
@@ -580,27 +575,12 @@ namespace HybridWebSocket
         /// Return WebSocket connection state.
         /// </summary>
         /// <returns>The state.</returns>
-        public WebSocketState GetState()
+        public WebSocketSharp.WebSocketState ReadyState
         {
-
-            switch (this.ws.ReadyState)
+            get
             {
-                case WebSocketSharp.WebSocketState.Connecting:
-                    return WebSocketState.Connecting;
-
-                case WebSocketSharp.WebSocketState.Open:
-                    return WebSocketState.Open;
-
-                case WebSocketSharp.WebSocketState.Closing:
-                    return WebSocketState.Closing;
-
-                case WebSocketSharp.WebSocketState.Closed:
-                    return WebSocketState.Closed;
-
-                default:
-                    return WebSocketState.Closed;
+                return this.ws.ReadyState;
             }
-
         }
 
     }
