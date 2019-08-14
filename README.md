@@ -4,6 +4,14 @@ This fork was made so that
 - We could make some light modifications to support sending/receiving string messages
 - We would have our own mirror
 
+Note that the original project comes with a demo script that was removed from this repo.
+
+## Installation instructions
+
+```
+git submodule add git@github.com:ctrl-labs/unity-websocket-webgl.git Assets/External/unity-websocket-webgl
+```
+
 ---
 
 # unity-websocket-webgl
