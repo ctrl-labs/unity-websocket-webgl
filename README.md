@@ -1,3 +1,11 @@
+### This is a fork of [unity-websocket-gl](https://github.com/jirihybek/unity-websocket-webgl/)
+
+This fork was made so that
+- We could make some light modifications to support sending/receiving string messages
+- We would have our own mirror
+
+---
+
 # unity-websocket-webgl
 
 Hybrid event-driven WebSocket implementation for Unity 3D.
