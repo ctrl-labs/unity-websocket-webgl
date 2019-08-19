@@ -10,6 +10,15 @@ using WebSocketSharp;
 
 namespace HybridWebSocket
 {
+    public interface IMessageEventArgs
+    {
+        string Data { get; }
+        bool IsBinary { get; }
+        bool IsPing { get; }
+        bool IsText { get; }
+        byte[] RawData { get; }
+    }
+    
     public class WSMessageEventArgs : EventArgs, IMessageEventArgs
     {
         private string _data;
