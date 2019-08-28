@@ -512,7 +512,7 @@ namespace HybridWebSocket
 
             try
             {
-                this.ws.ConnectAsync();
+                this.ws.Connect();
             }
             catch (Exception e)
             {
